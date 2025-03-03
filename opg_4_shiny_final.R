@@ -10,6 +10,25 @@ library(tidyr)
 pitch_length <- 100
 pitch_width <- 100
 
+my_theme <- create_theme(
+  adminlte_color(
+    light_blue = "#00008B",  # Dark Blue (R's "darkblue")
+    red = "#E4202C",         # Accent Red
+    black = "#000000",       # Black for dark elements
+    green = "#FFFFFF"        # Workaround for white
+  ),
+  adminlte_sidebar(
+    dark_bg = "#000000",       # Sidebar background (Black)
+    dark_hover_bg = "#00008B", # Sidebar hover (Dark Blue)
+    dark_color = "#FFFFFF"     # Sidebar text (White)
+  ),
+  adminlte_global(
+    content_bg = "#f4f6f9",  # Main content background (Light Grey)
+    box_bg = "#FFFFFF",      # Box background (White)
+    info_box_bg = "#E4202C"  # Info boxes (Red)
+  )
+)
+
 # UI
 ui <- dashboardPage(
   dashboardHeader(title = "Kombineret Shiny Applikation"),
@@ -21,6 +40,7 @@ ui <- dashboardPage(
     )
   ),
   dashboardBody(
+    use_theme(my_theme),
     tabItems(
       # Pane 1: Mål per spiller
       tabItem(tabName = "mål_per_spiller",
@@ -128,35 +148,56 @@ server <- function(input, output, session) {
       kamp_data <- kamp_data %>% filter(team.name == input$team_valg)
     }
     
-    kamp_data %>%
+    result <- kamp_data %>%
       group_by(player.name) %>%
       summarise(
+        `Team name` = first(team.name),
         Goals = sum(shot.isGoal, na.rm = TRUE), 
         xG = sum(shot.postShotXg, na.rm = TRUE)
       ) %>%
       arrange(desc(Goals)) %>%
-      head(input$Goal_filter)  # Beholder kun de øverste N spillere
+      head(input$Goal_filter)
+    
+    result$`Team name` <- as.factor(result$`Team name`)  # Konverter til faktor
+    print(result$`Team name`)  # Debugging: Tjek hvilke hold der kommer med
+    
+    return(result)
   })
+  
   
   
   output$plot_1 <- renderPlot({
     data <- filtered_data_1()  # Hent de filtrerede data først
     
-    ggplot(data, aes(x = reorder(player.name, -Goals), y = Goals)) +
+    ggplot(data, aes(x = reorder(player.name, -Goals), y = Goals, fill = `Team name`)) +
       geom_bar(stat = "identity") +
-      geom_point(aes(y = xG, color = "xG Sum"), size = 3) +
-      scale_y_continuous(breaks = seq(0, max(data$Goals, na.rm = TRUE), by = 2)) +  
+      
+      # xG-prikker med farve, så de får egen legend
+      geom_point(aes(y = xG, color = "sum.xG"), size = 3) +
+      
+      scale_y_continuous(breaks = seq(0, max(data$Goals, na.rm = TRUE), by = 2)) +
+      
+      # Ændrer farven for xG-punkter og fjerner titel
+      scale_color_manual(values = c("sum.xG" = "black"), name = NULL) +
+      
+      geom_text(aes(label = Goals, y = 0), vjust = -0.5, size = 5) +
+      
       labs(title = "Mål per spiller", x = "", y = "Antal mål") +
       theme_minimal() +
       theme(
         axis.text.x = element_text(angle = 70, hjust = 1, size = 13),
         axis.text.y = element_text(size = 12),
         plot.title = element_text(size = 16, face = "bold"),
-        panel.grid.major = element_blank(),  # Fjerner store gridlines
-        panel.grid.minor = element_blank(),  # Fjerner små gridlines
-        panel.background = element_blank()   # Fjerner baggrundsfarven
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank()
       ) +
-      guides(color = guide_legend(title = NULL))
+      
+      # Fjerner den sorte prik fra "Team name" ved at angive override.aes
+      guides(
+        fill = guide_legend(title = "Team name", override.aes = list(shape = NA)),
+        color = guide_legend(override.aes = list(fill = NA, shape = 16))  # Sørger for, at xG kun vises som prik
+      )
   })
   
   
