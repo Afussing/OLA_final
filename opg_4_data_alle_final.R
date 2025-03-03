@@ -169,10 +169,3 @@ dfskud_holland <- dfskud_holland %>% mutate(
 )
 
 dfskud_holland$type.primary <- gsub("penalty", "shot", dfskud_holland$type.primary)
-
-
-# Generelt
-## Bruges til opdeling af fodboldbanen 
-
-pitch_length <- 100
-pitch_width <- 100
